@@ -17,12 +17,24 @@ window.addEventListener('unhandledrejection', function(event) {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+    const MessageType = {
+        MSG: 'msg',
+        IMG: 'img',
+        WAV: 'wav'
+    };
+
     const chatBody = document.getElementById('chatBody');
     const sendButton = document.getElementById('sendButton');
+
     const messageInput = document.getElementById('messageInput');
-    const imageButton = document.getElementById('imageButton');
     const contactImageInput = document.getElementById('contactImageInput');
+
+    const imageButton = document.getElementById('imageButton');
     const imageInput = document.getElementById('imageInput');
+
+    const audioButton = document.getElementById('audioButton');
+    const audioInput = document.getElementById('audioInput');
+
     const jsonInput = document.getElementById('jsonInput');
     
     const backArrowButton = document.getElementById('backArrow');
@@ -38,8 +50,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let chatMessages = [];
 
     sendButton.addEventListener('click', () => sendMessage('sent'));
+
     imageButton.addEventListener('click', () => imageInput.click());
     imageInput.addEventListener('change', () => sendImage('sent'));
+
+    audioButton.addEventListener('click', () => audioInput.click());
+    audioInput.addEventListener('change', () => sendAudio('sent'));
+
     jsonInput.addEventListener('change', () => loadChat());
 
     backArrowButton.addEventListener('click', () => clearChat());
@@ -118,6 +135,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 reader.readAsDataURL(file);
             } else if (file.type.endsWith('/json')) {
                 loadChat(file);
+            } else {
+                console.log(file.type);
             }
         }
     });
@@ -139,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function sendMessage(type) {
         const messageText = messageInput.value.trim();
         if (messageText) {
-            createChatBubble(messageText, type);
+            createChatBubble(messageText, type, MessageType.MSG);
             messageInput.value = '';
         }
         messageInput.focus();
@@ -150,17 +169,81 @@ document.addEventListener('DOMContentLoaded', () => {
         if (file) {
             const reader = new FileReader();
             reader.onload = () => {
-                createChatBubble(reader.result, type, true);
+                createChatBubble(reader.result, type, MessageType.IMG);
                 imageInput.value = '';
             };
             reader.readAsDataURL(file);
         }
     }
 
-    function createChatBubble(content, type, isImage = false, insertBefore = null) {
+    function sendAudio(type) {
+        const file = audioInput.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                createChatBubble(reader.result, type, MessageType.WAV);
+                audioInput.value = '';
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function createChatBubble(content, type, messageType = MessageType.MSG, insertBefore = null) {
         const bubble = document.createElement('div');
         bubble.classList.add('chat-bubble', type);
 
+        switch(messageType) {
+            case MessageType.IMG:
+                img.src = content;
+                img.style.maxWidth = '100%';
+                img.style.maxHeight = '100%';
+                bubble.appendChild(img);
+                img.addEventListener('dblclick', () => toggleZoom(img));
+            case MessageType.WAV:
+                const audioContainer = document.createElement('div');
+                const audio = document.createElement('audio');
+                audio.controls = true;
+                const source = document.createElement('source');
+                source.src = content;
+                source.type = 'audio/wav';
+                audio.appendChild(source);
+                audioContainer.appendChild(audio);
+
+                const canvas = document.createElement('canvas');
+                canvas.id = 'waveformCanvas';
+                audioContainer.appendChild(canvas);
+
+                bubble.appendChild(audioContainer);
+
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                fetch(content)
+                    .then(response => response.arrayBuffer())
+                    .then(data => audioContext.decodeAudioData(data))
+                    .then(buffer => drawWaveform(buffer));
+
+                    function drawWaveform(buffer) {
+                        const ctx = canvas.getContext('2d');
+                        const width = canvas.width = 500; // Fixed width, adjust as needed
+                        const height = canvas.height = 100;
+                        const data = buffer.getChannelData(0);
+                        const step = Math.ceil(data.length / width);
+                        const amp = height / 2;
+        
+                        ctx.fillStyle = 'violet';
+                        ctx.clearRect(0, 0, width, height);
+        
+                        for (let i = 0; i < width; i++) {
+                            const min = Math.min(...data.slice(i * step, (i + 1) * step));
+                            const max = Math.max(...data.slice(i * step, (i + 1) * step));
+                            ctx.fillRect(i, (1 + min) * amp, 1, Math.max(1, (max - min) * amp));
+                        }
+                    }
+                return
+            default:
+                const span = document.createElement('span');
+                span.textContent = content;
+                bubble.appendChild(span);
+        }
         if (isImage) {
             const img = document.createElement('img');
             img.src = content;
@@ -169,9 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
             bubble.appendChild(img);
             img.addEventListener('dblclick', () => toggleZoom(img));
         } else {
-            const span = document.createElement('span');
-            span.textContent = content;
-            bubble.appendChild(span);
+            
         }
 
         const timestamp = document.createElement('div');
@@ -305,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function insertBeforeBubble(bubble) {
         const messageText = prompt('Type a message:');
         if (messageText) {
-            createChatBubble(messageText, 'sent', false, bubble);
+            createChatBubble(messageText, 'sent', MessageType.MSG, bubble);
             updateChatMessages();
         }
     }
@@ -403,6 +484,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 let chatMessages = [];
                 chatData.chatMessages.forEach(msg => {
+                    // TEMP UNTIL MOVED OVER SAVE
+                    const msg_type = (msg.isImage) ? MessageType.IMG : MessageType.msg
+                    // *************************
                     createChatBubble(msg.content, msg.type, msg.isImage);
                 });
             };
@@ -476,6 +560,46 @@ document.addEventListener('DOMContentLoaded', () => {
         createChatBubble("Wow!", "sent");
         createChatBubble("Wow!", "sent");
         createChatBubble("Wow!", "sent");
+    }
+
+    function playAudio() {
+        source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioContext.destination);
+        source.start(0);
+        isPlaying = true;
+    
+        source.onended = function() {
+            document.getElementById('playButton').innerText = 'Play';
+            isPlaying = false;
+        };
+    }
+    
+    function stopAudio() {
+        if (source) {
+            source.stop();
+            isPlaying = false;
+        }
+    }
+
+    // Audio Messages
+    function drawWaveform(buffer) {
+        const canvas = document.getElementById('waveformCanvas');
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width = window.innerWidth * 0.8;
+        const height = canvas.height = 150;
+        const data = buffer.getChannelData(0);
+        const step = Math.ceil(data.length / width);
+        const amp = height / 2;
+    
+        ctx.fillStyle = 'violet';
+        ctx.clearRect(0, 0, width, height);
+    
+        for (let i = 0; i < width; i++) {
+            const min = Math.min(...data.slice(i * step, (i + 1) * step));
+            const max = Math.max(...data.slice(i * step, (i + 1) * step));
+            ctx.fillRect(i, (1 + min) * amp, 1, Math.max(1, (max - min) * amp));
+        }
     }
 
     // Function to encode a string to Base64
