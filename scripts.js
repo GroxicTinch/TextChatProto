@@ -130,7 +130,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const content = e.target.result;
-                    createChatBubble(content, "received", true);
+                    createChatBubble(content, "received", MessageType.IMG);
+                };
+                reader.readAsDataURL(file);
+            } else if (file.type.startsWith('audio/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const content = e.target.result;
+                    createChatBubble(content, "received", MessageType.WAV);
                 };
                 reader.readAsDataURL(file);
             } else if (file.type.endsWith('/json')) {
@@ -194,65 +201,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
         switch(messageType) {
             case MessageType.IMG:
+                const img = document.createElement('img');
                 img.src = content;
                 img.style.maxWidth = '100%';
                 img.style.maxHeight = '100%';
                 bubble.appendChild(img);
                 img.addEventListener('dblclick', () => toggleZoom(img));
+                break;
             case MessageType.WAV:
-                const audioContainer = document.createElement('div');
                 const audio = document.createElement('audio');
                 audio.controls = true;
                 const source = document.createElement('source');
                 source.src = content;
                 source.type = 'audio/wav';
                 audio.appendChild(source);
-                audioContainer.appendChild(audio);
 
-                const canvas = document.createElement('canvas');
-                canvas.id = 'waveformCanvas';
-                audioContainer.appendChild(canvas);
-
-                bubble.appendChild(audioContainer);
+                bubble.appendChild(audio);
 
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 fetch(content)
                     .then(response => response.arrayBuffer())
-                    .then(data => audioContext.decodeAudioData(data))
-                    .then(buffer => drawWaveform(buffer));
-
-                    function drawWaveform(buffer) {
-                        const ctx = canvas.getContext('2d');
-                        const width = canvas.width = 500; // Fixed width, adjust as needed
-                        const height = canvas.height = 100;
-                        const data = buffer.getChannelData(0);
-                        const step = Math.ceil(data.length / width);
-                        const amp = height / 2;
-        
-                        ctx.fillStyle = 'violet';
-                        ctx.clearRect(0, 0, width, height);
-        
-                        for (let i = 0; i < width; i++) {
-                            const min = Math.min(...data.slice(i * step, (i + 1) * step));
-                            const max = Math.max(...data.slice(i * step, (i + 1) * step));
-                            ctx.fillRect(i, (1 + min) * amp, 1, Math.max(1, (max - min) * amp));
-                        }
-                    }
-                return
+                    .then(data => audioContext.decodeAudioData(data));
+                    break;
             default:
                 const span = document.createElement('span');
                 span.textContent = content;
                 bubble.appendChild(span);
-        }
-        if (isImage) {
-            const img = document.createElement('img');
-            img.src = content;
-            img.style.maxWidth = '100%';
-            img.style.maxHeight = '100%';
-            bubble.appendChild(img);
-            img.addEventListener('dblclick', () => toggleZoom(img));
-        } else {
-            
+                break;
         }
 
         const timestamp = document.createElement('div');
@@ -270,12 +245,14 @@ document.addEventListener('DOMContentLoaded', () => {
         timestamp.dataset.timestampOffset = timestampOffset;
         bubble.appendChild(timestamp);
 
+        bubble.classList.add(messageType.toLowerCase())
+
         if (insertBefore) {
             chatBody.insertBefore(bubble, insertBefore);
-            chatMessages.splice(insertBefore, 0, { content, type, isImage, timestampOffset: timestampOffset });
+            chatMessages.splice(insertBefore, 0, { content, type, messageType, timestampOffset: timestampOffset });
         } else {
             chatBody.appendChild(bubble);
-            chatMessages.push({ content, type, isImage, timestampOffset: timestampOffset });
+            chatMessages.push({ content, type, messageType, timestampOffset: timestampOffset });
         }
         chatBody.scrollTop = chatBody.scrollHeight;
 
@@ -284,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showContextMenu(e, bubble);
         });
 
-        updateChatMessages();
+        // updateChatMessages();
 
         return bubble;
     }
@@ -320,10 +297,15 @@ document.addEventListener('DOMContentLoaded', () => {
         swapOption.addEventListener('click', () => swapBubble(bubble));
         contextMenu.appendChild(swapOption);
 
-        const insertOption = document.createElement('div');
-        insertOption.textContent = 'Insert Message/Image';
-        insertOption.addEventListener('click', () => insertBeforeBubble(bubble));
-        contextMenu.appendChild(insertOption);
+        const insertTxtOption = document.createElement('div');
+        insertTxtOption.textContent = 'Insert Message';
+        insertTxtOption.addEventListener('click', () => insertBeforeBubble(bubble, MessageType.MSG));
+        contextMenu.appendChild(insertTxtOption);
+
+        const insertImgOption = document.createElement('div');
+        insertImgOption.textContent = 'Insert Image';
+        insertImgOption.addEventListener('click', () => insertBeforeBubble(bubble, MessageType.IMG));
+        contextMenu.appendChild(insertImgOption);
 
         const timestampOption = document.createElement('div');
         timestampOption.textContent = 'Change Timestamp';
@@ -361,14 +343,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isImage) {
             const result = prompt('Edit your message:', bubble.childNodes[0].src);
             if(result === null) { return; }
-            bubble.childNodes[0].src = newText;
+            bubble.childNodes[0].src = result;
             return;
-        }
-        const currentText = bubble.childNodes[0].textContent;
-        const newText = prompt('Edit your message:', currentText);
-        if (newText !== null) {
-            bubble.childNodes[0].textContent = newText;
-            updateChatMessages();
+        } else {
+            const currentText = bubble.childNodes[0].textContent;
+            const newText = prompt('Edit your message:', currentText);
+            if (newText !== null) {
+                bubble.childNodes[0].textContent = newText;
+                updateChatMessages();
+            }
         }
     }
 
@@ -383,12 +366,9 @@ document.addEventListener('DOMContentLoaded', () => {
         updateChatMessages();
     }
 
-    function insertBeforeBubble(bubble) {
-        const messageText = prompt('Type a message:');
-        if (messageText) {
-            createChatBubble(messageText, 'sent', MessageType.MSG, bubble);
-            updateChatMessages();
-        }
+    function insertBeforeBubble(bubble, messageType) {
+        createChatBubble("Edit Me!", 'sent', messageType, bubble);
+        updateChatMessages();
     }
 
     function changeTimestamp(bubble) {
@@ -435,11 +415,14 @@ document.addEventListener('DOMContentLoaded', () => {
         chatBubbles.forEach(bubble => {
             const type = bubble.classList.contains('sent') ? 'sent' : 'received';
             let content = '';
-            let isImage = false;
+            let messageType = MessageType.MSG
     
             if (bubble.querySelector('img')) {
                 content = bubble.querySelector('img').src;
-                isImage = true;
+                messageType = MessageType.IMG
+            } else if (bubble.querySelector('audio')) {
+                content = bubble.querySelector('source').src
+                messageType = MessageType.WAV
             } else {
                 content = bubble.querySelector('span').textContent;
             }
@@ -447,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
             chatMessages.push({
                 content,
                 type,
-                isImage
+                messageType
             });
         });
     
@@ -485,9 +468,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 let chatMessages = [];
                 chatData.chatMessages.forEach(msg => {
                     // TEMP UNTIL MOVED OVER SAVE
-                    const msg_type = (msg.isImage) ? MessageType.IMG : MessageType.msg
+                    const msg_type = (msg.isImage) ? MessageType.IMG : MessageType.MSG
                     // *************************
-                    createChatBubble(msg.content, msg.type, msg.isImage);
+                    createChatBubble(msg.content, msg.type, msg.messageType);
                 });
             };
             reader.readAsText(file);
@@ -543,11 +526,9 @@ document.addEventListener('DOMContentLoaded', () => {
         createChatBubble("How are you?", "sent");
         createChatBubble("Still working?", "sent");
         createChatBubble("I am good! This is me at work!", "received");
-        createChatBubble("contact.png", "received", true);
+        createChatBubble("contact.png", "received", MessageType.IMG);
         createChatBubble("Wow!", "sent");
-        createChatBubble("https://steamuserimages-a.akamaihd.net/ugc/947329338759835128/7231933026029A252E9814F28B37C48CEE3F4AA0/?imw=5000&imh=5000&ima=fit&impolicy=Letterbox&imcolor=%23000000&letterbox=false", "sent", true);
-        createChatBubble("Wow!", "sent");
-        createChatBubble("Wow!", "sent");
+        createChatBubble("https://steamuserimages-a.akamaihd.net/ugc/947329338759835128/7231933026029A252E9814F28B37C48CEE3F4AA0/?imw=5000&imh=5000&ima=fit&impolicy=Letterbox&imcolor=%23000000&letterbox=false", "sent", MessageType.IMG);
         createChatBubble("Wow!", "sent");
         createChatBubble("Wow!", "sent");
         createChatBubble("Wow!", "sent");
@@ -560,46 +541,8 @@ document.addEventListener('DOMContentLoaded', () => {
         createChatBubble("Wow!", "sent");
         createChatBubble("Wow!", "sent");
         createChatBubble("Wow!", "sent");
-    }
-
-    function playAudio() {
-        source = audioContext.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(audioContext.destination);
-        source.start(0);
-        isPlaying = true;
-    
-        source.onended = function() {
-            document.getElementById('playButton').innerText = 'Play';
-            isPlaying = false;
-        };
-    }
-    
-    function stopAudio() {
-        if (source) {
-            source.stop();
-            isPlaying = false;
-        }
-    }
-
-    // Audio Messages
-    function drawWaveform(buffer) {
-        const canvas = document.getElementById('waveformCanvas');
-        const ctx = canvas.getContext('2d');
-        const width = canvas.width = window.innerWidth * 0.8;
-        const height = canvas.height = 150;
-        const data = buffer.getChannelData(0);
-        const step = Math.ceil(data.length / width);
-        const amp = height / 2;
-    
-        ctx.fillStyle = 'violet';
-        ctx.clearRect(0, 0, width, height);
-    
-        for (let i = 0; i < width; i++) {
-            const min = Math.min(...data.slice(i * step, (i + 1) * step));
-            const max = Math.max(...data.slice(i * step, (i + 1) * step));
-            ctx.fillRect(i, (1 + min) * amp, 1, Math.max(1, (max - min) * amp));
-        }
+        createChatBubble("Wow!", "sent");
+        createChatBubble("Wow!", "sent");
     }
 
     // Function to encode a string to Base64

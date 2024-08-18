@@ -159,6 +159,13 @@ input:focus {
     top: 10px;
 }
 
+.chat-bubble.wav {
+    height: 40px;
+    padding : 0px;
+    border-radius: 0px;
+    max-width: 100%;
+}
+
 .chat-bubble.sent {
     background-color: var(--sentBackground);
     color: var(--sentText);
