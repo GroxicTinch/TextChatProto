@@ -1,11 +1,47 @@
+const MessageType = {
+    MSG: 'msg',
+    IMG: 'img',
+    WAV: 'wav'
+};
+
+document.addEventListener('alpine:init', () => {
+    Alpine.store('app', {
+        theme: {
+            headerBg: "#211c36",
+            headerText: "#e3e1e9",
+
+            mainText: "#e3e1e9",
+            bodyBg: "#151029",
+
+            receivedBg: "#322e3e",
+            receivedText: "#e3e1e9",
+            sentBg: "#c19ed6",
+            sentText: "#1c1a23",
+
+            timestampText: "#ccc3d2",
+            buttonHover: "#ffffff0F"
+        },
+        error: {
+            show: false,
+            text: ""
+        },
+        chatMessages: []
+    });
+});
+
 // Catch all uncaught JavaScript errors
 window.onerror = function(message, source, lineno, colno, error) {
     const errorMessage = `
         Message: ${message}
         Error object: ${JSON.stringify(error)}
     `;
-    showErrorModal(errorMessage);
-    // return true; // Prevents the default browser error handling
+
+    if (window.Alpine) {
+        const appStore = Alpine.store('app');
+
+        appStore.error.show = true;
+        appStore.error.text = errorMessage;
+    }
 };
 
 // Catch unhandled promise rejections
@@ -13,16 +49,16 @@ window.addEventListener('unhandledrejection', function(event) {
     const errorMessage = `
         Promise rejection: ${event.reason}
     `;
-    showErrorModal(errorMessage);
+
+    if (window.Alpine) {
+        const appStore = Alpine.store('app');
+
+        appStore.error.show = true;
+        appStore.error.text = errorMessage;
+    }
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-    const MessageType = {
-        MSG: 'msg',
-        IMG: 'img',
-        WAV: 'wav'
-    };
-
     const chatBody = document.getElementById('chatBody');
     const sendButton = document.getElementById('sendButton');
 
@@ -196,74 +232,78 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createChatBubble(content, type, messageType = MessageType.MSG, insertBefore = null) {
-        const bubble = document.createElement('div');
-        bubble.classList.add('chat-bubble', type);
+        const appStore = Alpine.store('app');
 
-        switch(messageType) {
-            case MessageType.IMG:
-                const img = document.createElement('img');
-                img.src = content;
-                img.style.maxWidth = '100%';
-                img.style.maxHeight = '100%';
-                bubble.appendChild(img);
-                img.addEventListener('dblclick', () => toggleZoom(img));
-                break;
-            case MessageType.WAV:
-                const audio = document.createElement('audio');
-                audio.controls = true;
-                const source = document.createElement('source');
-                source.src = content;
-                source.type = 'audio/wav';
-                audio.appendChild(source);
+        appStore.chatMessages.push({content, type, messageType});
 
-                bubble.appendChild(audio);
+        // const bubble = document.createElement('div');
+        // bubble.classList.add('chat-bubble', type);
 
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                fetch(content)
-                    .then(response => response.arrayBuffer())
-                    .then(data => audioContext.decodeAudioData(data));
-                    break;
-            default:
-                const span = document.createElement('span');
-                span.textContent = content;
-                bubble.appendChild(span);
-                break;
-        }
+        // switch(messageType) {
+        //     case MessageType.IMG:
+        //         const img = document.createElement('img');
+        //         img.src = content;
+        //         img.style.maxWidth = '100%';
+        //         img.style.maxHeight = '100%';
+        //         bubble.appendChild(img);
+        //         img.addEventListener('dblclick', () => toggleZoom(img));
+        //         break;
+        //     case MessageType.WAV:
+        //         const audio = document.createElement('audio');
+        //         audio.controls = true;
+        //         const source = document.createElement('source');
+        //         source.src = content;
+        //         source.type = 'audio/wav';
+        //         audio.appendChild(source);
 
-        const timestamp = document.createElement('div');
-        timestamp.classList.add('timestamp');
+        //         bubble.appendChild(audio);
 
-        var timestampOffset = 0;
+        //         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        //         fetch(content)
+        //             .then(response => response.arrayBuffer())
+        //             .then(data => audioContext.decodeAudioData(data));
+        //             break;
+        //     default:
+        //         const span = document.createElement('span');
+        //         span.textContent = content;
+        //         bubble.appendChild(span);
+        //         break;
+        // }
+
+        // const timestamp = document.createElement('div');
+        // timestamp.classList.add('timestamp');
+
+        // var timestampOffset = 0;
         
-        if (chatMessages.length === 0) {
-            timestamp.dataset.timestamp = new Date();
-        } else {
-            timestampOffset = generateTimestampOffset();
-        }
+        // if (chatMessages.length === 0) {
+        //     timestamp.dataset.timestamp = new Date();
+        // } else {
+        //     timestampOffset = generateTimestampOffset();
+        // }
 
-        timestamp.textContent = "";
-        timestamp.dataset.timestampOffset = timestampOffset;
-        bubble.appendChild(timestamp);
+        // timestamp.textContent = "";
+        // timestamp.dataset.timestampOffset = timestampOffset;
+        // bubble.appendChild(timestamp);
 
-        bubble.classList.add(messageType.toLowerCase())
+        // bubble.classList.add(messageType.toLowerCase())
 
-        if (insertBefore) {
-            chatBody.insertBefore(bubble, insertBefore);
-            chatMessages.splice(insertBefore, 0, { content, type, messageType, timestampOffset: timestampOffset });
-        } else {
-            chatBody.appendChild(bubble);
-            chatMessages.push({ content, type, messageType, timestampOffset: timestampOffset });
-        }
-        chatBody.scrollTop = chatBody.scrollHeight;
+        // if (insertBefore) {
+        //     chatBody.insertBefore(bubble, insertBefore);
+        //     chatMessages.splice(insertBefore, 0, { content, type, messageType, timestampOffset: timestampOffset });
+        // } else {
+        //     chatBody.appendChild(bubble);
+        //     chatMessages.push({ content, type, messageType, timestampOffset: timestampOffset });
+        // }
+        // chatBody.scrollTop = chatBody.scrollHeight;
 
-        bubble.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            showContextMenu(e, bubble);
-        });
+        // bubble.addEventListener('contextmenu', (e) => {
+        //     e.preventDefault();
+        //     showContextMenu(e, bubble);
+        // });
 
         // updateChatMessages();
-
-        return bubble;
+        
+        // return bubble;
     }
 
     function showContextMenu(event, bubble) {
@@ -555,23 +595,3 @@ document.addEventListener('DOMContentLoaded', () => {
         return decodeURIComponent(atob(encodedStr));
     }
 });
-
-// Function to display the error modal
-function showErrorModal(message) {
-    const modal = document.getElementById('errorModal');
-    const errorMessage = document.getElementById('errorMessage');
-    const closeButton = document.querySelector('.close-button');
-
-    errorMessage.textContent = message;
-    modal.style.display = 'flex';
-
-    closeButton.onclick = function() {
-        modal.style.display = 'none';
-    };
-
-    window.onclick = function(event) {
-        if (event.target == modal) {
-            modal.style.display = 'none';
-        }
-    };
-}
