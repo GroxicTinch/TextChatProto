@@ -13,9 +13,10 @@
 
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Sofia">
 </head>
 <body x-data class="bg-black h-screen h-full" :style="{ color: $store.app.theme.mainText}">
-    <div id="chat-container" class="w-full max-w-[600px] h-full bg-slate-50 mx-auto flex flex-col overflow-auto">
+    <div id="chat-container" class="w-full max-w-[600px] h-full mx-auto flex flex-col rounded-xl overflow-auto">
         <header x-data id="chat-header" class="flex flex-row flex-none" :style="{ backgroundColor: $store.app.theme.headerBg, color: $store.app.theme.headerText}">
             <!-- Back Arrow, Profile Pic and Contact Name -->
             <button class="w-14" id="backArrow"><span class="material-symbols-outlined">
@@ -59,21 +60,21 @@
                 <div id="downArrow" class="fixed w-8 h-8 leading-7 text-center bg-black text-white cursor-pointer z-10 top-20 inset-x-1/2 -translate-x-2/4 rounded-full">&darr;</div>
             </div>
         </div>
-        <footer x-data id="chat-footer" class="flex flex-row flex-none h-13 p-1" :style="{ backgroundColor: $store.app.theme.bodyBg }">
-            <button x-data id="smileButton" class="w-11 py-auto material-symbols-outlined flex-none rounded-l-full" :style="{ backgroundColor: $store.app.theme.headerBg }">
+        <footer x-data id="chat-footer" class="flex flex-row flex-none h-13 p-2" :style="{ backgroundColor: $store.app.theme.bodyBg }">
+            <button x-data id="smileButton" class="w-11 py-auto material-symbols-outlined flex-none rounded-l-full" :style="{ backgroundColor: $store.app.theme.receivedBg }">
                 sentiment_satisfied
             </button>
 
-            <input type="text" id="messageInput" class="h-11 pl-2 flex-auto outline-none bg-transparent" placeholder="Text message"  :style="{ backgroundColor: $store.app.theme.headerBg }">
+            <input type="text" id="messageInput" class="h-11 pl-2 flex-auto outline-none bg-transparent" placeholder="Text message"  :style="{ backgroundColor: $store.app.theme.receivedBg }">
 
-            <button id="audioButton" class="w-11 py-auto material-symbols-outlined" :style="{ backgroundColor: $store.app.theme.headerBg }">
+            <button id="audioButton" class="w-11 py-auto material-symbols-outlined" :style="{ backgroundColor: $store.app.theme.receivedBg }">
                 mic
             </button>
-            <button id="imageButton" class="w-11 py-auto material-symbols-outlined rounded-r-full pr-2 mr-1" :style="{ backgroundColor: $store.app.theme.headerBg }">
+            <button id="imageButton" class="w-11 py-auto material-symbols-outlined rounded-r-full pr-2 mr-1" :style="{ backgroundColor: $store.app.theme.receivedBg }">
                 image_search
             </button>
 
-            <button id="sendButton" class="w-11 py-auto material-symbols-outlined rounded-full" :style="{ backgroundColor: $store.app.theme.headerBg }">
+            <button id="sendButton" class="w-11 py-auto material-symbols-outlined rounded-full ml-1" :style="{ backgroundColor: $store.app.theme.receivedBg }">
                 send
             </button>
 
