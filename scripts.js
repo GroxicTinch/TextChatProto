@@ -27,6 +27,13 @@ document.addEventListener('alpine:init', () => {
         },
         chatMessages: []
     });
+
+    const appStore = Alpine.store('app');
+
+    document.documentElement.style.setProperty('--sentBackground', appStore.theme.sentBg);
+    document.documentElement.style.setProperty('--receivedBackground', appStore.theme.receivedBg);
+    document.documentElement.style.setProperty('--sentText', appStore.theme.sentText);
+    document.documentElement.style.setProperty('--receivedText', appStore.theme.receivedText);
 });
 
 // Catch all uncaught JavaScript errors
