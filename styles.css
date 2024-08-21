@@ -1,3 +1,5 @@
+[x-cloak] { display: none !important; }
+
 .chat-bubble:has(img) {
   padding: 0px;
   font-size: 0px;
@@ -8,23 +10,19 @@
   top: 10px;
 }
 
-.chat-bubble.wav {
-  height: 40px;
+.chat-bubble:has(audio) {
   padding : 0px;
-  border-radius: 0px;
-  max-width: 100%;
+  border-radius: 10px;
 }
 
 .chat-bubble.sent {
   background-color: var(--sentBackground);
   color: var(--sentText);
   align-self: flex-end;
-  text-align: right;
 }
 
 .chat-bubble.received {
   background-color: var(--receivedBackground);
   color: var(--receivedText);
   align-self: flex-start;
-  text-align: left;
 }

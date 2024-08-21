@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat Interface</title>
-    <script src="//unpkg.com/alpinejs" defer></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="alpine3.14.1.min.js" defer></script>
+    <script src="Tailwind3.4.5.js"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,85 +15,137 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Sofia">
 </head>
-<body x-data class="bg-black h-screen h-full" :style="{ color: $store.app.theme.mainText}">
+<body x-data="fileInputHandler" class="bg-stone-950 h-screen h-full" :style="{ color: $store.app.theme.mainText}"
+        x-on:dragover.prevent="dragOver" 
+        x-on:dragleave="dragLeave" 
+        x-on:drop.prevent="handleDrop">
+    <div x-data x-show="droppingScreen" class="absolute flex size-full bg-gray-500 justify-center items-center opacity-30 z-30">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-1/3">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m0-3-3-3m0 0-3 3m3-3V15" />
+        </svg>
+    </div>
+    <span class="left-0 top-0 font-size-small -z-50 absolute opacity-20" x-text="VERSION"></span>
     <div id="chat-container" class="w-full max-w-[600px] h-full mx-auto flex flex-col rounded-xl overflow-auto">
-        <header x-data id="chat-header" class="flex flex-row flex-none" :style="{ backgroundColor: $store.app.theme.headerBg, color: $store.app.theme.headerText}">
+        <header x-data="contactHandler" id="chat-header" class="flex flex-row flex-none" :style="{ backgroundColor: $store.app.theme.headerBg, color: $store.app.theme.headerText}">
             <!-- Back Arrow, Profile Pic and Contact Name -->
-            <button class="w-14" id="backArrow"><span class="material-symbols-outlined">
+            <button id="backArrow" class="size-14 my-auto material-symbols-outlined" @click="$store.app.chat.clear()">
                 arrow_back
-            </span></button>
-            <img id="contactImg" class="flex-none rounded-full p-2" src="contact.png" alt="Contact Image" width="64" height="64">
-            <input type="text" id="contact-name" class="pl-3 text-lg font-medium outline-none bg-transparent flex-auto" autocomplete="off" spellcheck="false"></input>
+            </button>
+            <img
+                x-ref="contactImg"
+                class="size-16 flex-none rounded-full p-2 object-cover"
+                :src="$store.app.chat.contactImgSrc"
+                width="64"
+                height="64"
+                x-on:click="triggerFileInput()"
+                x-on:contextmenu.prevent="changeImageUrl()"
+            >
+            <input x-data x-model="$store.app.chat.contact" type="text" id="contact-name" class="pl-3 text-lg font-semibold outline-none bg-transparent flex-auto" autocomplete="off" spellcheck="false"></input>
 
             <!-- Not Visible -->
-            <input type="file" id="contactImageInput" accept="image/*" style="display: none;">
+            <input
+                type="file"
+                x-ref="contactImageInput"
+                accept="image/*"
+                style="display: none;"
+                x-on:change="updateContactImg()"
+            >
             <!-- Call and Menu -->
-            <div class="flex flow-row flex-none pr-3">
-                <button id="call" class="w-11"><span class="material-symbols-outlined">
+            <div x-data="fileInputHandler" class="flex flow-row flex-none pr-3 my-auto">
+                <button id="call" class="size-11 material-symbols-outlined" @click="save()">
                     call
-                </span></button>
-                <button id="menu" class="w-11"><span class="material-symbols-outlined">
+                </button>
+                <button id="menu" class="size-11 material-symbols-outlined" @click="loadPrompt()">
                     menu
-                </span></button>
+                </button>
+
+                <!-- Not Visible -->
+                <input
+                    type="file"
+                    x-ref="loadInput"
+                    accept=".cht"
+                    style="display: none;"
+                    x-on:change="load()"
+                >
             </div>
         </header>
-        <div x-data id="chatBody" class="flex flex-col flex-1 overflow-y-scroll relative p-2.5" :style="{ backgroundColor: $store.app.theme.bodyBg }">
+        <div x-data="$store.app.chat.chatBodyElement = $el" id="chatBody" class="flex flex-col flex-1 overflow-y-scroll relative p-2.5" :style="{ backgroundColor: $store.app.theme.bodyBg }">
             <!-- Chat messages will be appended here -->
-            <template x-for="message in $store.app.chatMessages">
-                <div x-data class="px-2 py-2 rounded-2xl w-max max-w-80 min-h-max mb-px inline-block text-pretty relative text-xs overflow-clip"
-                :class="message.type === 'sent' ? 'chat-bubble sent' : 'chat-bubble received'">
-                    <template x-if="message.messageType === MessageType.IMG">
-                        <img x-bind:src="message.content" alt="">
+            <template x-for="(message, index) in $store.app.chat.messages" :key="index">
+                <div x-data class="px-3 py-2 rounded-2xl w-max max-w-80 min-h-max mb-1 inline-block text-pretty relative text-xs overflow-clip"
+                x-on:contextmenu="$store.app.contextMenu.call($event, index)"
+                :class="message.outgoing ? 'chat-bubble sent' : 'chat-bubble received'">
+                    <template x-if="message.msgType === MessageType.IMG">
+                        <img x-ref="img" x-bind:src="message.content" @click.prevent @dblclick="$store.app.chat.zoomImage($refs.img)">
                     </template>
-                    <template x-if="message.messageType === MessageType.WAV">
-                        <img src="" alt="">
+                    <template x-if="message.msgType === MessageType.WAV">
+                        <audio controls>
+                            <source x-bind:src="message.content">
+                        </audio>
                     </template>
-                    <template x-if="message.messageType === MessageType.MSG">
-                        <span x-text="message.content"></span>
+                    <template x-if="message.msgType === MessageType.TXT">
+                        <span x-text="message.content" class="font-semibold"></span>
                     </template>
                 </div>
             </template>
 
             <!-- Scroll up and down arrows -->
-            <div class="opacity-20">
-                <div id="upArrow" class="fixed w-8 h-8 leading-7 text-center bg-black text-white cursor-pointer z-10 bottom-14 inset-x-1/2 -translate-x-2/4 rounded-full">&uarr;</div>
-                <div id="downArrow" class="fixed w-8 h-8 leading-7 text-center bg-black text-white cursor-pointer z-10 top-20 inset-x-1/2 -translate-x-2/4 rounded-full">&darr;</div>
-            </div>
+            <!-- <div class="opacity-20">
+                <div id="upArrow" class="fixed w-8 h-8 leading-7 text-center bg-black text-white cursor-pointer z-10 top-20 inset-x-1/2 -translate-x-2/4 rounded-full">&uarr;</div>
+                <div id="downArrow" class="fixed w-8 h-8 leading-7 text-center bg-black text-white cursor-pointer z-10 bottom-16 inset-x-1/2 -translate-x-2/4 rounded-full">&darr;</div>
+            </div> -->
         </div>
-        <footer x-data id="chat-footer" class="flex flex-row flex-none h-13 p-2" :style="{ backgroundColor: $store.app.theme.bodyBg }">
+        <footer x-data="fileInputHandler" id="chat-footer" class="flex flex-row flex-none h-13 p-2" :style="{ backgroundColor: $store.app.theme.bodyBg }">
             <button x-data id="smileButton" class="w-11 py-auto material-symbols-outlined flex-none rounded-l-full" :style="{ backgroundColor: $store.app.theme.receivedBg }">
                 sentiment_satisfied
             </button>
 
-            <input type="text" id="messageInput" class="h-11 pl-2 flex-auto outline-none bg-transparent" placeholder="Text message"  :style="{ backgroundColor: $store.app.theme.receivedBg }">
+            <input x-data type="text" class="h-11 pl-2 flex-auto outline-none bg-transparent" placeholder="Text message" x-model="$store.app.chat.messageInputText" x-on:keydown.enter="$store.app.chat.sendTxt($event, $store.app.chat.messageInputText)" :style="{ backgroundColor: $store.app.theme.receivedBg }">
 
-            <button id="audioButton" class="w-11 py-auto material-symbols-outlined" :style="{ backgroundColor: $store.app.theme.receivedBg }">
+            <button id="audioButton" class="w-11 py-auto material-symbols-outlined" @click="wavPrompt()" :style="{ backgroundColor: $store.app.theme.receivedBg }">
                 mic
             </button>
-            <button id="imageButton" class="w-11 py-auto material-symbols-outlined rounded-r-full pr-2 mr-1" :style="{ backgroundColor: $store.app.theme.receivedBg }">
+            <button id="imageButton" class="w-11 py-auto material-symbols-outlined rounded-r-full pr-2 mr-1" @click="imgPrompt()" :style="{ backgroundColor: $store.app.theme.receivedBg }">
                 image_search
             </button>
 
-            <button id="sendButton" class="w-11 py-auto material-symbols-outlined rounded-full ml-1" :style="{ backgroundColor: $store.app.theme.receivedBg }">
+            <button id="sendButton" class="w-11 py-auto material-symbols-outlined rounded-full ml-1" @click="$store.app.chat.sendTxt($event, $store.app.chat.messageInputText)" :style="{ backgroundColor: $store.app.theme.receivedBg }">
                 send
             </button>
 
             <!-- Not Visible -->
-            <input type="file" id="imageInput" accept="image/*" style="display: none;">
-            <input type="file" id="audioInput" accept="sound/*" style="display: none;">
-            <input type="file" id="jsonInput" accept="json/.cht" style="display: none;">
+            <input x-ref="imageInput" type="file" @click="imgPrompt()" x-on:change="imgLoad()" id="imageInput" accept="image/*" style="display: none;">
+            <input x-ref="audioInput" type="file" @click="wavPrompt()" x-on:change="wavLoad()" id="audioInput" accept="audio/*" style="display: none;">
         </footer>
     </div>
-    <div x-data
-        x-show="$store.app.error.show"
+    <!-- Context Menu -->
+    <div x-data="$store.app.contextMenu" x-show="showMenu" @click.away="showMenu = false"
+    class="fixed z-50 bg-gray-700 shadow-md rounded-lg w-48 overflow-clip" 
+    :style="`top: ${position.top}px; left: ${position.left}px`">
+        <div class="p-2 hover:bg-gray-500 cursor-pointer" @click="$store.app.chat.editBubble(), showMenu = false">Edit</div>
+        <div class="p-2 hover:bg-gray-500 cursor-pointer" @click="$store.app.chat.deleteBubble(), showMenu = false">Delete</div>
+        <div class="p-2 hover:bg-gray-500 cursor-pointer" @click="$store.app.chat.swapBubble(), showMenu = false">Swap Sent/Received</div>
+        <div class="p-2 hover:bg-gray-500 cursor-pointer" @click="$store.app.chat.insertBeforeBubble(MessageType.TXT), showMenu = false">Insert Message</div>
+        <div class="p-2 hover:bg-gray-500 cursor-pointer" @click="$store.app.chat.insertBeforeBubble(MessageType.IMG), showMenu = false">Insert Image</div>
+        <div class="p-2 hover:bg-gray-500 cursor-pointer" @click="$store.app.chat.changeTimestamp(), showMenu = false">Change Timestamp</div>
+    </div>
+
+    <!-- Image Overlay -->
+    <div x-cloak x-data="$store.app.chat" x-show="imgOverlaySrc" class="fixed left-0 top-0 w-full h-full bg-black/50 flex" @click="imgOverlaySrc = ''">
+        <img x-data x-bind:src="imgOverlaySrc" class="size-11/12 m-auto object-contain" @click="imgOverlaySrc = ''">
+    </div>
+
+    <!-- Error Modal -->
+    <div x-data="$store.app.error"
+        x-show="show"
         id="errorModal"
         class="fixed z-1000 left-0 top-0 w-full h-full overflow-auto bg-black/50 justify-center items-center flex"
         style="display:none"
-        @click="$store.app.error.show = false">
+        @click="show = false">
         <div id="error-modal-content" class="bg-gray-500 text-white rounded-lg m-auto p-8 border border-color-slate-500 w-4/5 max-w-4/5 relative">
-            <span id="error-close-button" @click="$store.app.error.show = false" class="float-right text-2xl cursor-pointer font-bold hover:text-black">&times;</span>
+            <span id="error-close-button" @click="show = false" class="float-right text-2xl cursor-pointer font-bold hover:text-black">&times;</span>
             <h2>JavaScript Error</h2>
-            <pre x-text="$store.app.error.text"></pre>
+            <pre x-text="text"></pre>
         </div>
     </div>
     <script src="scripts.js"></script>
