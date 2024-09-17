@@ -72,7 +72,7 @@
         <div x-data="$store.app.chat.chatBodyElement = $el" id="chatBody" class="flex flex-col flex-1 overflow-y-scroll relative p-2.5" :style="{ backgroundColor: $store.app.theme.bodyBg }">
             <!-- Chat messages will be appended here -->
             <template x-for="(message, index) in $store.app.chat.messages" :key="index">
-                <div x-data class="px-3 py-2 rounded-2xl w-max max-w-80 min-h-max mb-1 inline-block text-pretty relative text-xs overflow-clip"
+                <div x-data class="px-3 py-2 rounded-2xl w-max max-w-[75%] min-h-max mb-1 inline-block text-pretty relative text-xs overflow-clip"
                 x-on:contextmenu="$store.app.contextMenu.call($event, index)"
                 :class="message.outgoing ? 'chat-bubble sent' : 'chat-bubble received'">
                     <template x-if="message.msgType === MessageType.IMG">
