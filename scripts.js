@@ -39,6 +39,9 @@ document.addEventListener('alpine:init', () => {
             messages: [],
 
             imgOverlaySrc: "",
+            imgScale: 1,
+            imgOriginX: 50,
+            imgOriginY: 50,
 
             clear() {
                 this.messages = [];
@@ -64,8 +67,30 @@ document.addEventListener('alpine:init', () => {
                 }
             },
 
-            zoomImage(img) {                
+            zoomImage(img) {      
+                this.imgScale = 1;
+
+                // Update origin based on mouse position
+                this.imgOriginX = 50;
+                this.imgOriginY = 50;
                 this.imgOverlaySrc = img.src;
+            },
+            imageScrollEvent(event) {
+                // Calculate zoom scale factor
+                const zoomFactor = 0.1;
+                const delta = event.deltaY < 0 ? 1 : -1;
+                
+                // Update scale
+                this.imgScale = Math.min(Math.max(this.imgScale + delta * zoomFactor, 1), 5);
+                
+                // Get mouse position relative to the image
+                const rect = event.target.getBoundingClientRect();
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+
+                // Update origin based on mouse position
+                this.imgOriginX = mouseX / rect.width * 100;
+                this.imgOriginY = mouseY / rect.height * 100;
             },
             // Message functions
             swapBubble(msgIndex = appStore.contextMenu.lastSelectedMessage) {

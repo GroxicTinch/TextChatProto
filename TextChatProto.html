@@ -132,7 +132,9 @@
 
     <!-- Image Overlay -->
     <div x-cloak x-data="$store.app.chat" x-show="imgOverlaySrc" class="fixed left-0 top-0 w-full h-full bg-black/50 flex" @click="imgOverlaySrc = ''">
-        <img x-data x-bind:src="imgOverlaySrc" class="size-11/12 m-auto object-contain" @click="imgOverlaySrc = ''">
+        <div class="relative w-full h-full flex justify-center items-center overflow-hidden">
+            <img x-data x-bind:src="imgOverlaySrc" class="size-11/12 m-auto object-contain" :style="`transform: scale(${imgScale}); transform-origin: ${imgOriginX}% ${imgOriginY}%;`" @wheel.prevent="imageScrollEvent($event)">
+        </div>
     </div>
 
     <!-- Error Modal -->
