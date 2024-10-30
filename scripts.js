@@ -33,6 +33,7 @@ document.addEventListener('alpine:init', () => {
         },
         chat: {
             chatBodyElement:null,
+            createdDate: "",
             contact: "Click me to change contact name",
             contactImgSrc: "contact.png",
             messageInputText: "",
@@ -44,6 +45,7 @@ document.addEventListener('alpine:init', () => {
             imgOriginY: 50,
 
             clear() {
+                this.setCreateDate();
                 this.messages = [];
             },
             sendTxt(event, content, outgoing = !(event.shiftKey || event.ctrlKey)) {
@@ -58,6 +60,10 @@ document.addEventListener('alpine:init', () => {
                 this.createMsg(content, outgoing, MessageType.WAV, true);
             },
             createMsg(content, outgoing, msgType = MessageType.TXT, scrollDown = false) {
+                if(!this.createdDate) {
+                    this.setCreateDate();
+                }
+
                 appStore.chat.messages.push({content, outgoing, msgType});
 
                 if(scrollDown) {
@@ -67,6 +73,39 @@ document.addEventListener('alpine:init', () => {
                 }
             },
 
+            dataUrlToBlob(dataUrl) {
+                const byteString = atob(dataUrl.split(',')[1]); // Decode Base64
+                const mimeString = dataUrl.split(',')[0].split(':')[1].split(';')[0]; // Extract MIME type
+      
+                // Create array buffer and fill it with decoded bytes
+                const ab = new ArrayBuffer(byteString.length);
+                const ia = new Uint8Array(ab);
+      
+                for (let i = 0; i < byteString.length; i++) {
+                  ia[i] = byteString.charCodeAt(i);
+                }
+      
+                return new Blob([ab], { type: mimeString });
+            },
+
+            dragImage(event) {        
+                // [FIXME:] Currently doesnt work        
+                const imgElement = event.target;
+                const dataUrl = imgElement.src;
+
+                // Convert the Base64 data URL to a Blob
+                const blob = this.dataUrlToBlob(dataUrl);
+
+                // Create a Blob URL from the Blob
+                const blobUrl = URL.createObjectURL(blob);
+
+                // Create a downloadable link using the DownloadURL format
+                const mimeType = 'image/png';  // Adjust MIME type if needed
+                const fileName = 'image.png';  // The name of the file to download
+
+                // Set the drag data in the format 'DownloadURL'
+                event.dataTransfer.setData('DownloadURL', `${mimeType}:${fileName}:${blobUrl}`);
+            },
             zoomImage(img) {      
                 this.imgScale = 1;
 
@@ -125,17 +164,67 @@ document.addEventListener('alpine:init', () => {
                 const message = this.messages[msgIndex];
                 console.log('Change Timestamp');
             },
+            getMetadataFromBubble(msgIndex = appStore.contextMenu.lastSelectedMessage) {
+                const message = this.messages[msgIndex];
+                const base64Image = message.content;
+                
+                const promise = new Promise((resolve, reject) => {
+                    try {
+                        // Decode the base64 image
+                        const binaryString = atob(base64Image.split(',')[1]); // Remove data URL prefix if present
+                        const byteArray = new Uint8Array(binaryString.length);
+                        
+                        for (let i = 0; i < binaryString.length; i++) {
+                            byteArray[i] = binaryString.charCodeAt(i);
+                        }
+
+                        // Parse the PNG to find the "tEXt" chunks
+                        const textChunks = {};
+                        let offset = 8; // Skip PNG signature
+
+                        while (offset < byteArray.length) {
+                            const length = (byteArray[offset] << 24) | (byteArray[offset + 1] << 16) | (byteArray[offset + 2] << 8) | byteArray[offset + 3];
+                            const chunkType = String.fromCharCode(...byteArray.slice(offset + 4, offset + 8));
+                            
+                            if (chunkType === 'tEXt') {
+                                const textData = byteArray.slice(offset + 8, offset + 8 + length);
+                                const nullByteIndex = textData.indexOf(0);
+                                const keyword = String.fromCharCode(...textData.slice(0, nullByteIndex));
+                                const value = String.fromCharCode(...textData.slice(nullByteIndex + 1));
+
+                                textChunks[keyword] = value;
+                            }
+
+                            offset += 12 + length; // Move to the next chunk (length + type + CRC)
+                        }
+
+                        resolve(JSON.parse(textChunks["prompt"]));
+                    } catch (error) {
+                        reject(new Error('Failed to extract PNG metadata: ' + error.message));
+                    }
+                });
+
+                promise.then(metadata => console.log(metadata))
+                .catch(error => console.error(error));
+            },
 
             scrollTop() {
                 this.chatBodyElement.scrollTop = 0;
             },
             scrollBottom() {
                 this.chatBodyElement.scrollTop = this.chatBodyElement.scrollHeight;
+            },
+            setCreateDate() {
+                const currentDate = new Date();
+                const formattedDate = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}_${String(currentDate.getHours()).padStart(2, '0')}-${String(currentDate.getMinutes()).padStart(2, '0')}`;
+                this.createdDate = formattedDate;
+                console.log('Creation Date set to', this.createdDate);
             }
         },
         contextMenu: {
             showMenu: false,
             messageSelected: -1,
+            msgType: null,
             position: { top: 0, left: 0 },
 
             call(event, msgIndex) {
@@ -147,6 +236,8 @@ document.addEventListener('alpine:init', () => {
                     return;
                 }
 
+                this.msgType = chatStore.messages[msgIndex].msgType;
+                
                 // Calculate initial position
                 let top = event.clientY;
                 let left = event.clientX;
@@ -213,12 +304,14 @@ document.addEventListener('alpine:init', () => {
         droppingScreen: false,
         save() {
             const version = VERSION;
+            const createDate = chatStore.createdDate;
             const contactNameVal = chatStore.contact;
             const contactImgSrc = chatStore.contactImgSrc;
             const chatMessages = chatStore.messages;
         
             const chatData = {
                 version,
+                createDate,
                 contactNameVal,
                 contactImgSrc,
                 chatMessages
@@ -228,7 +321,7 @@ document.addEventListener('alpine:init', () => {
             const a = document.createElement("a");
             const file = new Blob([chatDataStr], { type: 'application/json' });
             a.href = URL.createObjectURL(file);
-            a.download = 'chatData.cht';
+            a.download = `chatData${createDate}.cht`;
             a.click();
         },
         load(inFile = null) {
