@@ -6,6 +6,8 @@
     <title>Chat Interface</title>
     <script src="alpine3.14.1.min.js" defer></script>
     <script src="Tailwind3.4.5.js"></script>
+    <script type="text/javascript" src="pako.min.js"></script>
+
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -57,7 +59,7 @@
                 <button id="call" class="size-11 material-symbols-outlined" @click="save()">
                     call
                 </button>
-                <button id="menu" class="size-11 material-symbols-outlined" @click="loadPrompt()">
+                <button id="menu" class="size-11 material-symbols-outlined" @click="loadPrompt()" x-on:contextmenu.prevent="openAnotherWindow()">
                     menu
                 </button>
 
@@ -81,11 +83,20 @@
                         <img x-ref="img" x-bind:src="message.content" @click.prevent draggable="true"
                         x-on:dragstart="$store.app.chat.dragImage($event)" @dblclick="$store.app.chat.zoomImage($refs.img)">
                     </template>
+
+                    <template x-if="message.msgType === MessageType.VID">
+                        <video controls loop>
+                            <source x-bind:src="message.content" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    </template>
+
                     <template x-if="message.msgType === MessageType.WAV">
                         <audio controls>
                             <source x-bind:src="message.content">
                         </audio>
                     </template>
+                    
                     <template x-if="message.msgType === MessageType.TXT">
                         <span x-text="message.content" class="font-semibold"></span>
                     </template>

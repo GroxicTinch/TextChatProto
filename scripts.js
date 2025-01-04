@@ -1,6 +1,7 @@
 const MessageType = {
     TXT: 'txt',
     IMG: 'img',
+    VID: 'vid',
     WAV: 'wav'
 };
 
@@ -33,6 +34,7 @@ document.addEventListener('alpine:init', () => {
         },
         chat: {
             chatBodyElement:null,
+            fileName: "",
             createdDate: "",
             contact: "Click me to change contact name",
             contactImgSrc: "contact.png",
@@ -46,6 +48,7 @@ document.addEventListener('alpine:init', () => {
 
             clear() {
                 this.setCreateDate();
+                this.fileName = "";
                 this.messages = [];
             },
             sendTxt(event, content, outgoing = !(event.shiftKey || event.ctrlKey)) {
@@ -55,6 +58,9 @@ document.addEventListener('alpine:init', () => {
             },
             sendImg(content, outgoing = OUTGOING) {
                 this.createMsg(content, outgoing, MessageType.IMG, true);
+            },
+            sendVid(content, outgoing = OUTGOING) {
+                this.createMsg(content, outgoing, MessageType.VID, true);
             },
             sendWav(content, outgoing = OUTGOING) {
                 this.createMsg(content, outgoing, MessageType.WAV, true);
@@ -73,38 +79,46 @@ document.addEventListener('alpine:init', () => {
                 }
             },
 
-            dataUrlToBlob(dataUrl) {
-                const byteString = atob(dataUrl.split(',')[1]); // Decode Base64
-                const mimeString = dataUrl.split(',')[0].split(':')[1].split(';')[0]; // Extract MIME type
-      
-                // Create array buffer and fill it with decoded bytes
-                const ab = new ArrayBuffer(byteString.length);
-                const ia = new Uint8Array(ab);
-      
-                for (let i = 0; i < byteString.length; i++) {
-                  ia[i] = byteString.charCodeAt(i);
+            dataUrlToBlob(base64, mimeType) {
+                const byteCharacters = atob(base64.split(',')[1]); // Remove the data:image/png;base64, prefix
+                const byteArrays = [];
+
+                for (let offset = 0; offset < byteCharacters.length; offset += 1024) {
+                    const slice = byteCharacters.slice(offset, offset + 1024);
+                    const byteNumbers = new Array(slice.length);
+
+                    for (let i = 0; i < slice.length; i++) {
+                    byteNumbers[i] = slice.charCodeAt(i);
+                    }
+
+                    const byteArray = new Uint8Array(byteNumbers);
+                    byteArrays.push(byteArray);
                 }
-      
-                return new Blob([ab], { type: mimeString });
+
+                return new Blob(byteArrays, { type: mimeType });
             },
 
             dragImage(event) {        
-                // [FIXME:] Currently doesnt work        
-                const imgElement = event.target;
-                const dataUrl = imgElement.src;
-
-                // Convert the Base64 data URL to a Blob
-                const blob = this.dataUrlToBlob(dataUrl);
-
-                // Create a Blob URL from the Blob
-                const blobUrl = URL.createObjectURL(blob);
-
                 // Create a downloadable link using the DownloadURL format
                 const mimeType = 'image/png';  // Adjust MIME type if needed
                 const fileName = 'image.png';  // The name of the file to download
 
-                // Set the drag data in the format 'DownloadURL'
-                event.dataTransfer.setData('DownloadURL', `${mimeType}:${fileName}:${blobUrl}`);
+                // [FIXME:] Currently doesnt work        
+                const imgElement = event.target;
+                const base64Image = imgElement.src;
+
+                // Convert the Base64 data URL to a Blob
+                const blob = this.dataUrlToBlob(base64Image, mimeType);
+                const blobUrl = URL.createObjectURL(blob);
+
+                const file = new File([blob], fileName, { type: mimeType });
+
+                event.dataTransfer.items.clear();
+
+                event.dataTransfer.items.add(file);
+
+                // // Set the drag data in the format 'DownloadURL'
+                // event.dataTransfer.setData('DownloadURL', `${mimeType}:${fileName}:${blobUrl}`);
             },
             zoomImage(img) {      
                 this.imgScale = 1;
@@ -154,11 +168,13 @@ document.addEventListener('alpine:init', () => {
             insertBeforeBubble(msgType, msgIndex = appStore.contextMenu.lastSelectedMessage) {
                 const message = this.messages[msgIndex];
 
-                const content = "Edit Me!";
+                var content = prompt('Edit your message:');
+                if (content === null) {
+                    content = "Edit Me!";
+                }
                 const outgoing = message.outgoing;
 
                 this.messages.splice(msgIndex, 0, {content, outgoing, msgType});
-                console.log(this.messages)
             },
             changeTimestamp(msgIndex = appStore.contextMenu.lastSelectedMessage) {
                 const message = this.messages[msgIndex];
@@ -318,13 +334,21 @@ document.addEventListener('alpine:init', () => {
             };
         
             const chatDataStr = JSON.stringify(chatData);
+            const compressedData = pako.gzip(chatDataStr);  // Compress using gzip
             const a = document.createElement("a");
-            const file = new Blob([chatDataStr], { type: 'application/json' });
+            const file = new Blob([compressedData], { type: 'application/octet-stream' });
+
             a.href = URL.createObjectURL(file);
-            a.download = `chatData${createDate}.cht`;
+
+            if(chatStore.fileName) {
+                a.download = chatStore.fileName;
+            } else {
+                a.download = `chatData${createDate}.cht`;
+            }
+            
             a.click();
         },
-        load(inFile = null) {
+        load(inFile = null, fileExt = "cht") {
             var file;
 
             if(inFile) {
@@ -339,7 +363,20 @@ document.addEventListener('alpine:init', () => {
 
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    const chatData = JSON.parse(e.target.result);
+                    var chatData = ""
+
+                    try {
+                        const decompressedData = pako.ungzip(new Uint8Array(e.target.result), { to: 'string' });  // Decompress the data
+                        chatData = JSON.parse(decompressedData);  // Parse the decompressed string
+                    } catch (error) {
+                        warnVersionMismatch = true;
+                        try {
+                            chatData = JSON.parse(e.target.result);  // Parse the decompressed string
+                        } catch (error) {
+                            
+                        }
+                    }
+
                     let ver = chatData.version;
                     
                     if(typeof ver === 'undefined') {
@@ -354,12 +391,16 @@ document.addEventListener('alpine:init', () => {
                                 message.msgType = MessageType.TXT;
                             } else if (message.messageType === "img") {
                                 message.msgType = MessageType.IMG;
+                            } else if (message.messageType === "vid") {
+                                message.msgType = MessageType.VID;
                             }
                             delete message.messageType;
                         });
 
                         warnVersionMismatch = true;
                     }
+
+                    chatStore.createdDate = chatData.createDate
 
                     chatStore.contact = chatData.contactNameVal;
                     chatStore.contactImgSrc = chatData.contactImgSrc;
@@ -371,7 +412,14 @@ document.addEventListener('alpine:init', () => {
                         appStore.error.text = 'Save file was outdated, save this and override the old one';
                     }
                 };
-                reader.readAsText(file);
+
+                if (fileExt === 'cht') {
+                    reader.readAsArrayBuffer(file); // For new files
+                } else {
+                    reader.readAsText(file); // For old files
+                }
+
+                chatStore.fileName = file.filename;
                 chatStore.scrollTop();
             }
         },
@@ -380,6 +428,9 @@ document.addEventListener('alpine:init', () => {
         },
         imgPrompt() {
             this.$refs.imageInput.click()
+        },
+        openAnotherWindow() {
+            window.open(window.location.href, '_blank').focus();
         },
         imgLoad(inFile = null, outgoing = OUTGOING) {
             var file;
@@ -394,6 +445,23 @@ document.addEventListener('alpine:init', () => {
                 const reader = new FileReader();
                 reader.onload = () => {
                     chatStore.sendImg(reader.result, outgoing);
+                };
+                reader.readAsDataURL(file);
+            }
+        },
+        vidLoad(inFile = null, outgoing = OUTGOING) {
+            var file;
+
+            if(inFile) {
+                file = inFile;
+            } else {
+                file = this.$refs.imageInput.files[0];
+            }
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    chatStore.sendVid(reader.result, outgoing);
                 };
                 reader.readAsDataURL(file);
             }
@@ -438,15 +506,18 @@ document.addEventListener('alpine:init', () => {
                 const fileNameExploded = file.name.split('.');
                 const fileExt = fileNameExploded[fileNameExploded.length-1];
 
-                if (fileExt === 'cht') {
+                if (fileExt === 'cht' || fileExt === 'ocht') {
                     console.log('Dropped a .cht file');
-                    this.load(file);
+                    this.load(file, fileExt);
                 } else if (file.type.startsWith('audio/')) {
                     console.log('Dropped an audio file');
                     this.wavLoad(file, INCOMING);
                 } else if (file.type.startsWith('image/')) {
                     console.log('Dropped an image file');
                     this.imgLoad(file, INCOMING);
+                } else if (file.type.startsWith('video/')) {
+                    console.log('Dropped an video file');
+                    this.vidLoad(file, INCOMING);
                 } else {
                     console.log('Unsupported file\nType: ' + file.type + '\nExt: ' + fileExt);
                 }
